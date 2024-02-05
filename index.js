@@ -7,7 +7,9 @@ require("dotenv").config();
 const port = process.env.PORT || 5000;
 const User = require("./models/user.js");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 const jwtSecret = process.env.JWT_SECRET;
+const ws = require("ws");
 
 //middleware
 app.use(
@@ -27,6 +29,9 @@ try {
   console.error(error);
 }
 
+//bcrypt salt
+const bcryptSalt = bcrypt.genSaltSync(10);
+
 app.get("/", (req, res) => {
   res.send("server is running");
 });
@@ -43,10 +48,35 @@ app.get("/profile", (req, res) => {
   }
 });
 
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+  const matchedUser = await User.findOne({ username });
+  if (matchedUser) {
+    const matchedPassword = bcrypt.compareSync(password, matchedUser.password);
+    if (matchedPassword) {
+      jwt.sign(
+        { userId: matchedUser._id, username },
+        jwtSecret,
+        {},
+        (err, token) => {
+          if (err) throw err;
+          res
+            .cookie("token", token, { sameSite: "none", secure: true })
+            .json({ id: matchedUser._id });
+        }
+      );
+    }
+  }
+});
+
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
   try {
-    const createdUser = await User.create({ username, password });
+    const hashedPassword = bcrypt.hashSync(password, bcryptSalt);
+    const createdUser = await User.create({
+      username: username,
+      password: hashedPassword,
+    });
     jwt.sign(
       { userId: createdUser._id, username },
       jwtSecret,
@@ -66,6 +96,27 @@ app.post("/register", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server is running on ${port}`);
+});
+
+//webscoket server
+const wss = new ws.WebSocketServer({ server });
+
+wss.on("connection", (connection, req) => {
+  const cookie = req.headers.cookie;
+  if (cookie) {
+    const tokenCookieStr = cookie
+      .split(";")
+      .find((str) => str.startsWith("token="));
+    if (tokenCookieStr) {
+      const token = tokenCookieStr.split("=")[1];
+      if (token) {
+        jwt.verify(token, jwtSecret, {}, (err, userData) => {
+          if (err) throw err;
+          console.log(userData);
+        });
+      }
+    }
+  }
 });
