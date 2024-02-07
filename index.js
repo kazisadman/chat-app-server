@@ -131,7 +131,9 @@ wss.on("connection", (connection, req) => {
     if (recipent && text) {
       [...wss.clients]
         .filter((c) => c.userId === recipent)
-        .forEach((c) => c.send(JSON.stringify({ text })));
+        .forEach((c) =>
+          c.send(JSON.stringify({ text, sender: connection.userId }))
+        );
     }
   });
 
