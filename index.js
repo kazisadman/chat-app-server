@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const jwtSecret = process.env.JWT_SECRET;
 const ws = require("ws");
+const MessageModel = require("./models/message.js");
 
 //middleware
 app.use(
@@ -124,15 +125,27 @@ wss.on("connection", (connection, req) => {
     }
   }
 
-  connection.on("message", (message) => {
+  connection.on("message", async (message) => {
     const parsedMessage = JSON.parse(message);
     const { recipent, text } = parsedMessage;
 
     if (recipent && text) {
+      const messageDoc = await MessageModel.create({
+        Sender: connection.userId,
+        recipent,
+        text,
+      });
       [...wss.clients]
         .filter((c) => c.userId === recipent)
         .forEach((c) =>
-          c.send(JSON.stringify({ text, sender: connection.userId }))
+          c.send(
+            JSON.stringify({
+              id: messageDoc._id,
+              text,
+              sender: connection.userId,
+              recipent,
+            })
+          )
         );
     }
   });
