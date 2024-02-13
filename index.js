@@ -37,6 +37,38 @@ app.get("/", (req, res) => {
   res.send("server is running");
 });
 
+app.get("/messages/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const userData = await getUserDataFromReq(req);
+  const senderId = userData.userId;
+  console.log(userId, senderId);
+
+  try {
+    const messages = await MessageModel.find({
+      sender: { $in: [userId, senderId] },
+      recipent: { $in: [userId, senderId] },
+    }).sort({ createdAt: -1 });
+    res.json(messages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+async function getUserDataFromReq(req) {
+  const token = req.cookies?.token;
+  return new Promise((resolve, reject) => {
+    if (token) {
+      jwt.verify(token, jwtSecret, {}, (err, userData) => {
+        if (err) throw err;
+        resolve(userData);
+      });
+    } else {
+      reject("no token");
+    }
+  });
+}
+
 app.get("/profile", (req, res) => {
   const token = req.cookies?.token;
   if (token) {
@@ -131,7 +163,7 @@ wss.on("connection", (connection, req) => {
 
     if (recipent && text) {
       const messageDoc = await MessageModel.create({
-        Sender: connection.userId,
+        sender: connection.userId,
         recipent,
         text,
       });
