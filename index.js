@@ -24,7 +24,6 @@ app.use(express.json());
 app.use(cookieParser());
 
 //mongoose connection
-
 try {
   mongoose.connect(process.env.MONGODB_URL);
 } catch (error) {
@@ -38,10 +37,10 @@ app.get("/", (req, res) => {
   res.send("server is running");
 });
 
-app.get('/users',async (req,res)=>{
-  const users = await user.find()
-  res.json(users)
-})
+app.get("/users", async (req, res) => {
+  const users = await user.find();
+  res.json(users);
+});
 
 app.get("/messages/:userId", async (req, res) => {
   const { userId } = req.params;
@@ -142,7 +141,33 @@ const server = app.listen(port, () => {
 const wss = new ws.WebSocketServer({ server });
 
 wss.on("connection", (connection, req) => {
+  function notifyOnlinePeople() {
+    [...wss.clients].forEach((client) => {
+      client.send(
+        JSON.stringify({
+          online: [...wss.clients].map((c) => ({
+            userId: c.userId,
+            userName: c.userName,
+          })),
+        })
+      );
+    });
+  }
   //read username and id from the cookie for this connection
+
+  connection.isAlive = true;
+
+  connection.timer = setInterval(() => {
+    connection.ping();
+    const connectionDeadTimer = setTimeout(() => {
+      connection.isAlive = false;
+      notifyOnlinePeople();
+    }, 1000);
+  }, 5000);
+
+  connection.on("pong", () => {
+    clearTimeout(connection.connectionDeadTimer);
+  });
 
   const cookie = req.headers.cookie;
   if (cookie) {
@@ -188,15 +213,5 @@ wss.on("connection", (connection, req) => {
   });
 
   //notify every client about online people (when someone connects)
-
-  [...wss.clients].forEach((client) => {
-    client.send(
-      JSON.stringify({
-        online: [...wss.clients].map((c) => ({
-          userId: c.userId,
-          userName: c.userName,
-        })),
-      })
-    );
-  });
+  notifyOnlinePeople();
 });
