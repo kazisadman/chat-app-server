@@ -11,6 +11,7 @@ const bcrypt = require("bcrypt");
 const jwtSecret = process.env.JWT_SECRET;
 const ws = require("ws");
 const MessageModel = require("./models/message.js");
+const user = require("./models/user.js");
 
 //middleware
 app.use(
@@ -37,17 +38,21 @@ app.get("/", (req, res) => {
   res.send("server is running");
 });
 
+app.get('/users',async (req,res)=>{
+  const users = await user.find()
+  res.json(users)
+})
+
 app.get("/messages/:userId", async (req, res) => {
   const { userId } = req.params;
   const userData = await getUserDataFromReq(req);
   const senderId = userData.userId;
-  console.log(userId, senderId);
 
   try {
     const messages = await MessageModel.find({
       sender: { $in: [userId, senderId] },
       recipent: { $in: [userId, senderId] },
-    }).sort({ createdAt: -1 });
+    }).sort({ createdAt: 1 });
     res.json(messages);
   } catch (error) {
     console.error(error);
@@ -172,7 +177,7 @@ wss.on("connection", (connection, req) => {
         .forEach((c) =>
           c.send(
             JSON.stringify({
-              id: messageDoc._id,
+              _id: messageDoc._id,
               text,
               sender: connection.userId,
               recipent,
