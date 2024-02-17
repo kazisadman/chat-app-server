@@ -137,6 +137,13 @@ const server = app.listen(port, () => {
   console.log(`Server is running on ${port}`);
 });
 
+//logout
+app.use("/logout", (req, res) => {
+  res
+    .cookie("token", "", { sameSite: "none", secure: "true" })
+    .json("logedout");
+});
+
 //webscoket server
 const wss = new ws.WebSocketServer({ server });
 
@@ -159,14 +166,15 @@ wss.on("connection", (connection, req) => {
 
   connection.timer = setInterval(() => {
     connection.ping();
-    const connectionDeadTimer = setTimeout(() => {
+    connection.deathTimer = setTimeout(() => {
       connection.isAlive = false;
+      clearInterval(connection.timer);
       notifyOnlinePeople();
     }, 1000);
   }, 5000);
 
   connection.on("pong", () => {
-    clearTimeout(connection.connectionDeadTimer);
+    clearTimeout(connection.deathTimer);
   });
 
   const cookie = req.headers.cookie;
