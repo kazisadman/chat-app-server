@@ -12,6 +12,7 @@ const jwtSecret = process.env.JWT_SECRET;
 const ws = require("ws");
 const MessageModel = require("./models/message.js");
 const user = require("./models/user.js");
+const fs = require("fs");
 
 //middleware
 app.use(
@@ -197,13 +198,29 @@ wss.on("connection", (connection, req) => {
 
   connection.on("message", async (message) => {
     const parsedMessage = JSON.parse(message);
-    const { recipent, text } = parsedMessage;
+    const { recipent, text, file } = parsedMessage;
+    let fileName = null;
+    if (file) {
+      const getExtension = file.name.split(".");
+      const extension = getExtension[getExtension.length - 1];
+      fileName = `${Date.now()}.${extension}`;
+      const filePath = __dirname + "\\uploads\\" + fileName;
 
-    if (recipent && text) {
+      app.use("/uploads", express.static(__dirname + "//uploads"));
+
+      const bufferData = Buffer.from(file.data.split(",")[1], "base64");
+
+      fs.writeFile(filePath, bufferData, () => {
+        console.log(`file saved:${filePath}`);
+      });
+    }
+
+    if (recipent && (text || file)) {
       const messageDoc = await MessageModel.create({
         sender: connection.userId,
         recipent,
         text,
+        file: fileName || null,
       });
       [...wss.clients]
         .filter((c) => c.userId === recipent)
