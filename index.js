@@ -103,6 +103,8 @@ app.post("/login", async (req, res) => {
             .json({ id: matchedUser._id });
         }
       );
+    } else {
+      res.status(401).json("Username or Password not matched");
     }
   }
 });
@@ -130,7 +132,7 @@ app.post("/register", async (req, res) => {
       }
     );
   } catch (error) {
-    console.error(error);
+    res.status(403).json("Username already exist");
   }
 });
 
@@ -199,28 +201,15 @@ wss.on("connection", (connection, req) => {
   connection.on("message", async (message) => {
     const parsedMessage = JSON.parse(message);
     const { recipent, text, file } = parsedMessage;
-    let fileName = null;
-    if (file) {
-      const getExtension = file.name.split(".");
-      const extension = getExtension[getExtension.length - 1];
-      fileName = `${Date.now()}.${extension}`;
-      const filePath = __dirname + "\\uploads\\" + fileName;
 
-      app.use("/uploads", express.static(__dirname + "//uploads"));
-
-      const bufferData = Buffer.from(file.data.split(",")[1], "base64");
-
-      fs.writeFile(filePath, bufferData, () => {
-        console.log(`file saved:${filePath}`);
-      });
-    }
+    const fileUrl = file?.url;
 
     if (recipent && (text || file)) {
       const messageDoc = await MessageModel.create({
         sender: connection.userId,
         recipent,
         text,
-        file: fileName || null,
+        file: fileUrl || null,
       });
       [...wss.clients]
         .filter((c) => c.userId === recipent)
@@ -231,6 +220,7 @@ wss.on("connection", (connection, req) => {
               text,
               sender: connection.userId,
               recipent,
+              fileUrl,
             })
           )
         );
